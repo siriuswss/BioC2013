@@ -52,7 +52,7 @@
 
 This package \Rclass{ChipSeq} provides all necessary data for the chip-seq sections of the 2013 BioConducor Labsession. This vignette also includes all commands that we will be used throughout the lab sessions \cite{Mercier:2011p5429,Zhang:2010p3139}.
 
-\part{chip-seq}
+\part{ChIP-Seq for Transcription Binding sites}
 \section{Data Input}
 For your convenience, the experimental data required in this package have already been pre-formatted and can simply be loaded with the following commands:
 <<Load the chipData package>>=
@@ -109,7 +109,7 @@ ER.ethl<-ER.ethl[c("chr21","chr22")]
 @
 
 \begin{Exercise}
-Do the same with FOXA1 chip-seq data.
+Do the same process of generating GRanges object for FOXA1 chip-seq data.
 \end{Exercise}
 
 <<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
@@ -159,17 +159,14 @@ mapp27 <- as(mapp27, "GRanges")
 
 @
 
-Here our aligned reads are stored in \Rclass{GRanges} objects whereas our mappability profiles are stored in \Rclass(GRanges} objects.
+Here our aligned reads are stored in \Rclass{GRanges} objects whereas our mappability profiles are stored in \Rclass(RangedData} objects. Therefore we also change them to \Rclass{GRanges} objects. 
 Note that the mappability profile is read length dependent. For each chromosome, a mappability profile for a specific read length (e.g. 36 bp) consists of a vector that lists an estimated read mappability `score' for each base pair in the chromosome. A score of one at a genomic position means that we should be able to uniquely align a read that overlaps that position, while a score of zero indicates that no read of that length should be uniquely alignable at that position. As noted above, typically only reads that map to unique genomic locations are retained for analysis. For convenience, and because transitions between mappable and non-mappable regions are often much shorter than the regions, we compactly summarize each chromosome's mappability profile as a disjoint union of non-mappable intervals that specify only zero-valued profile regions \\
-
-\begin{Exercise}
-  Do the same with the ER chip-seq data.
-\end{Exercise}
+ 
 
 \section{Statistical Analysis}
 \subsection{Genome segmentation}
 
-Because ChIP-seq aligned-read data are usually sparse, consisting largely of regions in which few or no reads are observed, we first preprocess the read data by segmenting the genome into regions, each of which has a minimum number of reads that aligned to forward and reverse strands. Using the data we have read and formatted, as described above, we now use the \Rfunction{segmentPICS} function, as follows,
+Because ChIP-seq aligned-read data are usually sparse, consisting largely of regions in which few or no reads are observed, we first preprocess the read data by segmenting the genome into regions, each of which has a minimum number of reads that aligned to forward and reverse strands. For computational efficiency, we recomend the utilization of the \Rpackage{parallel} package. We can set the number of cores for parellel computation by the argument of 'nCores'. By default the function uses only on core. Using the data we have read and formatted, as described above, we now use the \Rfunction{segmentPICS} function, as follows,
 <<Genome segmentation,eval=TRUE,echo=TRUE>>=
 data(ER)
 data(mapp)
@@ -178,7 +175,7 @@ summary(seg)
 @
 
 the returned value is a \Rclass{segReadsList} object. Each element of the \Rclass{segReadsList} contains the reads for the corresponding `candidate' region as well as the mappability intervals intersecting the region.
-
+ 
 \subsection{Data smoothing and PICS processing:}
 Now that we have created our seg object, we are ready to fit \Rfunction{PICS} to each region, this is automatically done with the \Rfunction{PICS} function.
 
@@ -199,7 +196,7 @@ score<-score(pics)
 summary(score)
 @
 
-These are simple vectors containing all estimated parameters across candidate regions, and one can see that the average fragment size distributions is about 179 bps. In order to better visualize the fragment length estimates across binding events, we can use a simple histogram.
+These are simple vectors containing all estimated parameters across candidate regions, and one can see that the average fragment size distributions is about 144 bps. In order to better visualize the fragment length estimates across binding events, we can use a simple histogram.
 <<PICS-fragment-length-distribution,eval=TRUE,echo=TRUE,fig=TRUE,eps=TRUE,pdf=FALSE>>=
 # For clarity, we focus on (0,500)
 hist(delta,xlim=c(0,500),50,main="Average fragment length distribution")
@@ -266,18 +263,21 @@ fdr <- picsFDR(pics, picsC, filter=list(delta=c(50, Inf), se=c(0,50), sigmaSqF=c
 
 note that we have created a method for plot. If you input two pics objects, an FDR curve will be generated. \textbf{Note that the second argument needs to be the control.}
 <<PICS-FDR,eval=TRUE,echo=TRUE,fig=TRUE,eps=TRUE,pdf=FALSE>>=
-plot(pics,picsC)
-plot(fdr[,c(3,1)])
+plot(pics,picsC, type="l")
 @
 and one can see that a threshold score of 2 would lead to an estimated FDR of about 10\% with about 300 regions
 If we want to use a score of 2 as threshold and filter atypical regions we can simply use
 <<PICS-FDR,eval=TRUE,echo=TRUE>>=
-
 # Filter atypical peaks
 myFilter<-list(score=c(2,Inf),delta=c(50,300),se=c(0,50), sigmaSqF=c(0,22500),sigmaSqR=c(0,22500))
 # Make a RangedData Object
 RD<-makeRangedDataOutput(pics, type="bed", filter=myFilter)
 @
+We can also visualize the FDR as a functioin fo the number of regions.
+<<PICS-FDR,eval=TRUE,echo=TRUE,fig=TRUE,eps=TRUE,pdf=FALSE>>=
+plot(fdr[, c(3,1])
+@
+
 
 \section{Visualization}
 The visualization of enriched regions and track lines is possible thanks to \Rpackage{GenomeGraphs} and \Rpackage{rtracklayer}.
@@ -453,6 +453,14 @@ Filter<-setFilter(name = "", tfname = "FOXA1", top = 5, evalueMax = 10^-4)
 jaspar.match.FOXA1<-filter(jaspar.match, Filter, verbose = TRUE)
 FOXA1oc<-exportAsRangedData(jaspar.match.FOXA1, FOXA1gadem, correction=TRUE)
 @
+\part{MNase-Seq and ChIP-Seq for Nucleosome positioning}
+\section{Introduction}
+The nucleosome is the basic structural unit of chromatin, which is composed of a nucleosomeal core including $147$bp of DNA wrapped around a central histone octamer (H2A, H2B, H3 and H4) and `linker` DNA connecting nucleosomal core to the next. Because limited accessibility, identifying nucleosome positioning helps biologists to understand the cellular mechanism. The \Rclass{PING} package is develpped for identifying nucleosome positioning. 
+  
+\section{Data Input}
+The package is developped for single-end and also paired-end sequencing ChIP-Seq data.  
+
+
 
 \part{Appendix: Installing PICS and MoTiV}
 
