@@ -469,6 +469,9 @@ library(ShortRead)
 path <- system.file("extdata/chip-seq/SE",package = "ChipSeq")
 SE<-read.table(file.path("SE.bed"), header=TRUE)
 SE<- as(SE, "GRanges")
+n{exercise}
+Do convert data `SE.bam` to \Rclass{GRanges} object.
+\end{exercise}
 @
 
 The \Rlass{PICS} package includes \Rfunction{bam2gr} function for converting a `BAM` format to \Rclass{GRanges} object.
@@ -492,68 +495,97 @@ summary(seg)
 @
 
 For \Rclass{PING}, the returned value is also a \Rclass{segReadsList} object. Each element of the \Rclass{segReadsList} contains the reads for the corresponding `candidate' region as well as the mappability intervals intersecting the region.
-The \Rclass{PING} is for MNase and sonicated data sets. Therefore, the user should know which datatype they are dealing with. All default parameters are set for `MNase` datatype. In order to use `sonicated` data, the user should add the argument `dataType` in the function. The warning message states whether the parameters are set for `MNase` datatype or `sonicated` one.  
 
-<<Genome segmentation,eval=TRUE,echo=TRUE>>=
-seg<-segmentPICS(data=SE, minReads=NULL, maxLregion=1200, minLregion=80, jitter=TRUE, dataType="sonicated")
-@
 
 \subsection{PING processing:}
 Now that we have created our `seg` object, we are ready to use\Rfunction{PING} to probabilitically detect positioned nucleosomes.  
 
 <<PING processing,eval=TRUE,echo=TRUE>>=
-pics<-PICS(seg, nCores=2)
+ping<-PING(seg, nCores=2)
 @
 
+The \Rclass{PING} is for MNase and sonicated data sets. Therefore, the user should know which datatype they are dealing with. All default parameters are set for `MNase` datatype. In order to use `sonicated` data, the user should add the argument `dataType` in the function. The warning message states whether the parameters are set for `MNase` datatype or `sonicated` one.
 
-
-
-\noindent\textbf{The \Rclass{picsList} object and accessors:}
-The object returned by the \Rfunction{PICS} function is an S4 class containing all necessary information (e.g. parameters, scores, etc). We have implemented numerous accessors for you to efficiently retrieve important information from such an object. All of them are documented in the \Rfunction{PICS} vignette, available with the package, but we review a few important accessors here:
-<<PICS accessors,eval=TRUE,echo=TRUE>>=
+\noindent\textbf{The \Rclass{pingList} object and accessors:}
+The returned object from the \Rfunction{PING} function is an S4 class containing all necessary information (e.g. parameters, scores, etc). We have implemented numerous accessors for you to efficiently retrieve important information from such an object. All of them are documented in the \Rfunction{PING} vignette, available with the package, but we review a few important accessors here:
+<<PING accessors,eval=TRUE,echo=TRUE>>=
 #Get the location of the binding sites (mid-point of the motifs).
-mu<-mu(pics)
+mu<-mu(ping)
 # Get the fragment length estimates from all binding events
-delta<-delta(pics)
+delta<-delta(ping)
 summary(delta)
 # Get the enrichment score from all binding events
-score<-score(pics)
+score<-score(ping)
 summary(score)
 @
 
-
-
-
-
-
-
+For visualization of the estimated fragment lengths, we can simply use histgram. The estimated fragment length of the data is around $147$ bp, which is very close to the DNA framgnet size wrapping around a nucleosome.
  
+<<PING delta Histogram, eval=TRUE, echo=TRUE>>=
+hist(delta,xlim=c(0,500),50,main="Average fragment length distribution")
+@
 
+\subsection{Pose-processing PING results}
 
-\part{Appendix: Installing PICS and MoTiV}
+The variation in nucleosome-based short-read data lead that some of PING's predictions may be inaccurate. For example, when a nucleosome with strong signal is adjacent to nucleosomes with weaker signals, \Rclass{PING} may fit two forward mixture componets and one reverse component. This causes a mismatch of forward/reverse peaks of other nucleosomes. We need to detect and resolve such problematic regions using \Rfunction{postPING} function.The argument of `dataType` in both \Rfunction{PING} and \Rfunction{postPING} should be consistent.
 
-To build the \texttt{PICS} package from source, make sure that the following is present in your system:
-\begin{itemize}
-\item GNU Scientific Library (GSL)
-\item Basic Linear Algebra Subprograms (BLAS)
-\end{itemize}
+<<postPING process, eval=TRUE, echo=TRUE>>=
+PS <- postPING(ping, seg)
+@
 
-GSL can be downloaded at \url{http://www.gnu.org/software/gsl/}.  In addition, the package uses BLAS to perform basic vector and matrix operations.  Please go to \url{http://www.netlib.org/blas/faq.html#5} for a list of optimized BLAS libraries for a variety of computer architectures.  For instance, Mac users may use the built-in vecLib framework, while users of Intel machines may use the Math Kernel Library (MKL).  A C compiler is needed to build the package as the core of the \texttt{PICS} function is coded in C.
+The output of \Rfunction{postPING} is a dataframe including all estimated parameters for each identified nucleosome position. The user can use \Rfunction{write.table} function to export the result. 
 
-For the package to be installed properly you might have to type the following command before installation:\\[6pt]
-\texttt{export LD\_LIBRARY\_PATH='/path/to/GSL/:/path/to/BLAS/':\$LD\_LIBRARY\_PATH}\\[6pt]
-which will tell {\bf R} where your GSL and BLAS libraries (see below for more details about BLAS libraries) are.  Note that this might have already been configured on your system, so you might not have to do so.  In case you need to do it, you might consider copying and pasting the line in your \texttt{.bashrc} so that you do not have to do it every time. 
+\begin{exercise}
+Export the postPING result.
+\end{exercise}
 
-Now you are ready to install the package: \\[6pt]
-\texttt{R CMD INSTALL PICS\_x.y.z.tar.gz}\\[6pt]
-The package will look for a BLAS library on your system, and by default it will choose gslcblas, which is not optimized for your system.  To use an optimized BLAS library, you can use the \texttt{-{}-with-blas} argument which will be passed to the \texttt{configure.ac} file.  For example, on a Mac with vecLib pre-installed the package may be installed via: \\[6pt]
-\texttt{R CMD INSTALL PICS\_x.y.z.tar.gz -{}-configure-args="-{}-with-blas='-framework vecLib'"}\\[6pt]
-On a 64-bit Intel machine which has MKL as the optimized BLAS library, the command may look like: \\[6pt]
-\texttt{R CMD INSTALL PICS\_x.y.z.tar.gz -{}-configure-args="-{}
--with-blas='-L/usr/local/mkl/lib/em64t/ -lmkl -lguide -lpthread'"}\\[6pt]
-where \texttt{/usr/local/mkl/lib/em64t/} is the path to MKL. 
+\subsection{Export result}
 
-If you prefer to install a prebuilt binary, you need GSL for successful installation. 
+For further analysis including uploading the identified nucleosome positions in `UCSC` browser, we use the \Rfunction{makeRangedDataOutput} to export \Rclass{pingList} of the \Rclass{data.frame} from \Rfunction{postPING} to different data formats. 
+
+<<Export the PING results, eval=TRUE, echo=TRUE>>=
+rdBed <- makeRangedDataOutput(ping, type="bed")
+library(rtracklayer)
+export(rdBed, file="ping.bed")
+@
+  
+The function uses the estimated fragment size in the `BED` format to infer the ranges where as the 'fixed' type is a `BED` format with a fixed nucleosome size of $147$bp.  
+
+\begin{exercise}
+Export the postPING result using `fix` type.
+\end{exercise}
+
+\subsection{Visualization}
+
+To faciliate with the \Rclass{Gviz} package, the user can visualize the identified nucleosome positions for a given ranges. The \Rclass{PING} also includes a built-in plotting function \Rfunction{ploSummary}. 
+
+<<Visualization, eval=TRUE, echo=TRUE>>=
+plotSummary(PS, ping, SE, "chr1", "gen", from=149000, to=153000)
+@
+
+The plot shows the predicted nucleosome positions, the associated score for each nucleosome and the profile of the short reads in addition to the alighned reads. The user can filter the nucleosomes passing some threshold of the score using the argument of \Rclass{scoreThreshold}. We also can hide the score track on the graph by setting the argumet of \Rclass{scoreTrack} as `FALSE`
+
+\begin{exercise}
+Replot the predicted nucleosome positions for the same genomic region without score track.
+\end{exercise}
+
+The user also can use functions in \Rclass{Gviz} to customize their own plot. The available functions for creating tracks in the \Rclass{PING} package are \Rfunction{CoverageTrack}, \Rfunction{RawReadsTrack}, and \Rfunction{NucleosomeTrack}
+
+<<Visualization, eval=TRUE, echo=TRUE>>=
+library(Gviz)
+cTrack <- CoverageTrack(ping, dataIP, "chr1", "gen")
+rTrack <- RawReadsTrack(ping, dataIP, "chr1", "gen", name = "Reads")
+nTrack <- NucleosomeTrack(PS, "chr1", "gen", scoreThreshold = 0.1, name = "NEW")
+
+## Add genomic information using Gviz's built-in functions. 
+gTrack <- GenomeAxisTrack(add53 = TRUE, add35 = TRUE)
+aTrack <- AnnotationTrack(start = 149500, end = 151000, showFeatureId= TRUE,
+     id = "random annotation", col.title = "orange", chr = "chr1",
+     gen = "gen", name = "custom")
+plotTracks(trackList = c(gTrack, cTrack, aTrack, rTrack, nTrack),
+     main = "Custom plot", from = 149000, to = 153000)
+@ 
+
 
 \end{document}
 
