@@ -459,7 +459,75 @@ The nucleosome is the basic structural unit of chromatin, which is composed of a
   
 \section{Data Input}
 The package is developped for single-end and also paired-end sequencing ChIP-Seq data.  
+The basic data input of \Rclass{PING} is a \Rclass{GRanges} objects condtaining the directional aligned reads(SE data) or recondtructed DNA fragments(PE data). \Rclass{GRanges} can be derived from `BED` and `BAM` formats. 
 
+<<Raw Data Input,eval=FALSE,echo=TRUE>>=
+library(PING)
+library(ShortRead)
+# SE data (Single-End data file)
+# Get the path of the data
+path <- system.file("extdata/chip-seq/SE",package = "ChipSeq")
+SE<-read.table(file.path("SE.bed"), header=TRUE)
+SE<- as(SE, "GRanges")
+@
+
+The \Rlass{PICS} package includes \Rfunction{bam2gr} function for converting a `BAM` format to \Rclass{GRanges} object.
+
+\begin{exercise}
+Do convert data `SE.bam` to \Rclass{GRanges} object. 
+\end{exercise} 
+
+<<Answer,eval=TRUE,echo=FALSE,fig=FALSE>>=
+path <- system.file("extdata/chip-seq/SE.bam",package = "ChipSeq")
+gr<-bam2gr(bamFile=path, PE=FALSE)
+@
+
+\section{Statistical Analysis}
+\subsection{Genome segmentation}
+Because of sparseness of the ChIP-Seq data, we pull out genomic regions including a minimum number of forward and reverse reads. We use \Rfunction{segmentPING} function for calling candidate regions. However, the regions including nuclesomes are usually wider than those including transcription binding sites. Therfore, we set some filtering arguments in \Rfunction{segmentPING} as following:
+
+<<Genome segmentation,eval=TRUE,echo=TRUE>>=
+seg<-segmentPICS(data=SE, minReads=NULL, maxLregion=1200, minLregion=80, jitter=TRUE)
+summary(seg)
+@
+
+For \Rclass{PING}, the returned value is also a \Rclass{segReadsList} object. Each element of the \Rclass{segReadsList} contains the reads for the corresponding `candidate' region as well as the mappability intervals intersecting the region.
+The \Rclass{PING} is for MNase and sonicated data sets. Therefore, the user should know which datatype they are dealing with. All default parameters are set for `MNase` datatype. In order to use `sonicated` data, the user should add the argument `dataType` in the function. The warning message states whether the parameters are set for `MNase` datatype or `sonicated` one.  
+
+<<Genome segmentation,eval=TRUE,echo=TRUE>>=
+seg<-segmentPICS(data=SE, minReads=NULL, maxLregion=1200, minLregion=80, jitter=TRUE, dataType="sonicated")
+@
+
+\subsection{PING processing:}
+Now that we have created our `seg` object, we are ready to use\Rfunction{PING} to probabilitically detect positioned nucleosomes.  
+
+<<PING processing,eval=TRUE,echo=TRUE>>=
+pics<-PICS(seg, nCores=2)
+@
+
+
+
+
+\noindent\textbf{The \Rclass{picsList} object and accessors:}
+The object returned by the \Rfunction{PICS} function is an S4 class containing all necessary information (e.g. parameters, scores, etc). We have implemented numerous accessors for you to efficiently retrieve important information from such an object. All of them are documented in the \Rfunction{PICS} vignette, available with the package, but we review a few important accessors here:
+<<PICS accessors,eval=TRUE,echo=TRUE>>=
+#Get the location of the binding sites (mid-point of the motifs).
+mu<-mu(pics)
+# Get the fragment length estimates from all binding events
+delta<-delta(pics)
+summary(delta)
+# Get the enrichment score from all binding events
+score<-score(pics)
+summary(score)
+@
+
+
+
+
+
+
+
+ 
 
 
 \part{Appendix: Installing PICS and MoTiV}
