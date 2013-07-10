@@ -538,13 +538,18 @@ The output of \Rfunction{postPING} is a dataframe including all estimated parame
 \begin{exercise}
 Export the postPING result.
 \end{exercise}
+<<Answer,eval=TRUE,echo=FALSE,fig=FALSE>>=
+write.table(PS, file="postPING.txt", sep="\t", rownames=FALSE)
+@
 
 \subsection{Export result}
 
-For further analysis including uploading the identified nucleosome positions in `UCSC` browser, we use the \Rfunction{makeRangedDataOutput} to export \Rclass{pingList} of the \Rclass{data.frame} from \Rfunction{postPING} to different data formats. 
+For further analysis including uploading the identified nucleosome positions in `UCSC` browser, we use the \Rfunction{makeRangedDataOutput} to export \Rclass{pingList} from \Rfunction{PING} or the \Rclass{data.frame} from \Rfunction{postPING} to different data formats. 
 
 <<Export the PING results, eval=TRUE, echo=TRUE>>=
+## Exporting PING result 
 rdBed <- makeRangedDataOutput(ping, type="bed")
+
 library(rtracklayer)
 export(rdBed, file="ping.bed")
 @
@@ -554,6 +559,14 @@ The function uses the estimated fragment size in the `BED` format to infer the r
 \begin{exercise}
 Export the postPING result using `fix` type.
 \end{exercise}
+
+<<Answer,eval=TRUE,echo=FALSE,fig=FALSE>>=
+## Exporting postPING result rdFix <- makeRangedDataOutput(PS, type="fix")
+library(rtracklayer)
+export(rdBed, file="ping.bed")
+export(rdFix, file="postPING.bed")
+@
+
 
 \subsection{Visualization}
 
@@ -568,6 +581,10 @@ The plot shows the predicted nucleosome positions, the associated score for each
 \begin{exercise}
 Replot the predicted nucleosome positions for the same genomic region without score track.
 \end{exercise}
+
+<<Answer,eval=TRUE,echo=FALSE,fig=FALSE>>=
+plotSummary(PS, ping, SE, "chr1", "gen", from=149000, to=153000, scoreTrack=FALSE)
+@
 
 The user also can use functions in \Rclass{Gviz} to customize their own plot. The available functions for creating tracks in the \Rclass{PING} package are \Rfunction{CoverageTrack}, \Rfunction{RawReadsTrack}, and \Rfunction{NucleosomeTrack}
 
