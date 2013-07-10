@@ -1,1 +1,1 @@
-BioC2013 Session
+BioC2013 Lab Session: ChIP-Seq analysis
