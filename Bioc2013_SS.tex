@@ -1,0 +1,61 @@
+%
+% NOTE -- ONLY EDIT THE .Rnw FILE!!!  The .tex file is
+% likely to be overwritten.
+%
+% Sweave("~/git/BioC2013/BioC2013_SS.Rnw")
+% Stangle(system.file("BioC2013_SS.Rnw",package="ChipSeq"))
+%\VignetteIndexEntry{}
+% \VignetteDepends{PICS,rGADEM,MotIV,PING}
+%\VignetteKeywords{}
+%\VignettePackage{}
+
+\documentclass[12pt]{article}
+
+\usepackage{amsmath,pstricks}
+% \usepackage[authoryear,round]{natbib}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage[super,numbers,round,sort&compress]{natbib}
+
+\textwidth=6.2in
+\textheight=8.5in
+%\parskip=.3cm
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+
+
+\newcommand{\Rfunction}[1]{{\textit{#1}}}
+\newcommand{\Robject}[1]{{``#1''}}
+\newcommand{\Rpackage}[1]{\texttt{#1}}
+\newcommand{\Rmethod}[1]{\textit{#1}}
+\newcommand{\Rfunarg}[1]{{`#1'}}
+\newcommand{\Rclass}[1]{{\textit{#1}}}
+
+\textwidth=6.2in
+
+ 
+\usepackage{Sweave}
+\begin{document}
+%\setkeys{Gin}{width=0.55\textwidth}
+
+\newtheorem{Exercise}{Exercise}[section]
+
+\title{chip-seq data analysis \\ 2013 BioConductor LabSession: ``A Bioconductor pipeline for the analyis of ChIP-Seq experiments.''}
+\author{Xuekui Zhang, Sangsoon Woo and Arnaud Droit}
+
+\maketitle
+
+\section{Introduction}
+
+This package \Rclass{ChipSeq} provides all necessary data for the chip-seq sections of the 2013 BioConducor Labsession. This vignette also includes all commands that we will be used throughout the lab sessions \cite{Mercier:2011p5429,Zhang:2010p3139}.
+
+\part{ChIP-Seq for Transcription Binding sites}
+\section{Data Input}
+For your convenience, the experimental data required in this package have already been pre-formatted and can simply be loaded with the following commands:
+\begin{Schunk}
+\begin{Sinput}
+> library(ChipSeq)
