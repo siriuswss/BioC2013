@@ -1,0 +1,579 @@
+%
+% NOTE -- ONLY EDIT THE .Rnw FILE!!!  The .tex file is
+% likely to be overwritten.
+%
+% Sweave("~/git/BioC2013/BioC2013_SS.Rnw")
+% Stangle(system.file("BioC2013_SS.Rnw",package="ChipSeq"))
+%\VignetteIndexEntry{}
+% \VignetteDepends{PICS,rGADEM,MotIV,PING}
+%\VignetteKeywords{}
+%\VignettePackage{}
+
+\documentclass[12pt]{article}
+\SweaveOpts{keep.sourse=FALSE}
+
+\usepackage{amsmath,pstricks}
+% \usepackage[authoryear,round]{natbib}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage[super,numbers,round,sort&compress]{natbib}
+
+\textwidth=6.2in
+\textheight=8.5in
+%\parskip=.3cm
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+
+\newcommand{\Rfunction}[1]{{\textit{#1}}}
+\newcommand{\Robject}[1]{{``#1''}}
+\newcommand{\Rpackage}[1]{\texttt{#1}}
+\newcommand{\Rmethod}[1]{\textit{#1}}
+\newcommand{\Rfunarg}[1]{{`#1'}}
+\newcommand{\Rclass}[1]{{\textit{#1}}}
+\textwidth=6.2in
+
+ 
+\begin{document}
+%\setkeys{Gin}{width=0.55\textwidth}
+
+\newtheorem{Exercise}{Exercise}[section]
+
+\title{chip-seq data analysis \\ 2013 BioConductor LabSession: ``A Bioconductor pipeline for the analyis of ChIP-Seq experiments.''}
+\author{Xuekui Zhang, Sangsoon Woo and Arnaud Droit}
+
+\maketitle
+
+\section{Introduction}
+
+This package \Rclass{ChipSeq} provides all necessary data for the chip-seq sections of the 2013 BioConducor Labsession. This vignette also includes all commands that we will be used throughout the lab sessions \cite{Mercier:2011p5429,Zhang:2010p3139}.
+
+\part{ChIP-Seq for Transcription Binding sites}
+\section{Data Input}
+For your convenience, the experimental data required in this package have already been pre-formatted and can simply be loaded with the following commands:
+<<Load the chipData package>>=
+library(ChipSeq)
+# Chip-seq ER data
+# This will load two datasets
+data(ER)
+# ChIP-Seq FOXA1 data
+data(FOXA1)
+# Mappability profiles
+data(mapp)
+@
+
+then the ER chip-seq data \cite{Hu:2010uq} will be loaded in your workspace and you can quickly have a look by typing
+<<ER data>>=
+ER.E2
+ER.ethl
+@
+We have also included the raw data in the package, and the following commands should get you the pre-formatted data
+<<Raw Data Input,eval=FALSE,echo=TRUE>>=
+
+library(ShortRead)
+# ER data (Eland file)
+# Get the path of the data
+path <- system.file("extdata/chip-seq/ER",package = "ChipSeq")
+# Grep the treatment file
+E2.file<-list.files(path, pattern = "E2",full.names = FALSE)
+
+# Grep the control file
+ ethl.file<-list.files(path, pattern = "ethl",full.names = FALSE)
+
+# Set some filters
+filtChr<- chromosomeFilter("chr")
+filtUnique<-occurrenceFilter(min=1L, max=1L)
+filtStrand<-strandFilter(strandLevels=c("+","-"))
+filtOverall<-compose(filtChr,filtUnique,filtStrand)
+
+# Now we use ShortRead to read the data
+ ER.E2<-readAligned(path,type="SolexaExport",pattern=E2.file,filter=filtOverall)
+ ER.E2<- as(ER.E2, "GRanges")
+
+#Do the same for the IP file
+ ER.ethl<-readAligned(path,type="SolexaExport",pattern=ethl.file,filter=filtOverall)
+ ER.ethl<- as(ER.ethl, "GRanges")
+
+
+# save(ER.ethl,ER.E2,file="ER.rda")
+@
+
+\begin{Exercise}
+Do the same process of generating GRanges object for FOXA1 chip-seq data.
+\end{Exercise}
+
+<<Answer,eval=TRUE,echo=FALSE,fig=FALSE>>=
+#FOXA1 data (Bed files)
+path<-system.file("extdata/chip-seq/FOXA1",package="ChipSeq")
+dataIP<-read.table(file.path(path,"Treatment_tags_header_chr21_22.bed"),header=TRUE,  colClasses=c("factor","integer","integer","factor"))
+dataIP<-as(dataIP,"GRanges")
+# Grep the control file
+dataCont<-read.table(file.path(path,"Input_tags_header_chr21_22.bed"),header=TRUE,colClasses=c("factor","integer","integer","factor"))
+dataCont<-as(dataCont,"GRanges")
+
+
+# save(FOXA1.IP,FOXA1.INP,file="FOXA1.rda")
+
+# Mappability files
+library(rtracklayer)
+path <- system.file("extdata/chip-seq/mapp",package = "ChipSeq")
+mapp27.file<-list.files(path, pattern = "mapp27",full.names = TRUE)
+mapp36.file<-list.files(path, pattern = "mapp36",full.names = TRUE)
+
+mapp36<-import(mapp36.file,genome="hg18")
+mapp36 <- as(mapp36, "GRanges")
+
+mapp27<-read.table(file.path(path,"mapp27.bed"),header=TRUE, colClasses=c("factor","integer","integer","NULL"))
+mapp27<-as(mapp27,"GRanges")
+
+# save(mapp27,mapp36,file="mapp.rda")
+
+@
+
+Here our aligned reads are stored in \Rclass{GRanges} objects whereas our mappability profiles are stored in \Rclass(RangedData} objects. Therefore we also change them to \Rclass{GRanges} objects. 
+Note that the mappability profile is read length dependent. For each chromosome, a mappability profile for a specific read length (e.g. 36 bp) consists of a vector that lists an estimated read mappability `score' for each base pair in the chromosome. A score of one at a genomic position means that we should be able to uniquely align a read that overlaps that position, while a score of zero indicates that no read of that length should be uniquely alignable at that position. As noted above, typically only reads that map to unique genomic locations are retained for analysis. For convenience, and because transitions between mappable and non-mappable regions are often much shorter than the regions, we compactly summarize each chromosome's mappability profile as a disjoint union of non-mappable intervals that specify only zero-valued profile regions \\
+ 
+
+\section{Statistical Analysis}
+\subsection{Genome segmentation}
+
+Because ChIP-seq aligned-read data are usually sparse, consisting largely of regions in which few or no reads are observed, we first preprocess the read data by segmenting the genome into regions, each of which has a minimum number of reads that aligned to forward and reverse strands. For computational efficiency, we recomend the utilization of the \Rpackage{parallel} package. We can set the number of cores for parellel computation by the argument of 'nCores'. By default the function uses only on core. Using the data we have read and formatted, as described above, we now use the \Rfunction{segmentPICS} function, as follows,
+<<Genome segmentation,eval=TRUE,echo=TRUE>>=
+data(ER)
+data(mapp)
+
+library(parallel)
+seg<-segmentPICS(ER.E2, dataC=ER.ethl, map=mapp36, minReads=1)
+summary(seg)
+@
+
+the returned value is a \Rclass{segReadsList} object. Each element of the \Rclass{segReadsList} contains the reads for the corresponding `candidate' region as well as the mappability intervals intersecting the region.
+ 
+\subsection{Data smoothing and PICS processing:}
+Now that we have created our seg object, we are ready to fit \Rfunction{PICS} to each region, this is automatically done with the \Rfunction{PICS} function.
+
+<<PICS processing,eval=TRUE,echo=TRUE>>=
+# This might take about a few minutes on a single cpu, but we can set the number of cores for the parrelel run. 
+pics<-PICS(seg, nCores=2)
+@
+\noindent\textbf{The \Rclass{picsList} object and accessors:} 
+The object returned by the \Rfunction{PICS} function is an S4 class containing all necessary information (e.g. parameters, scores, etc). We have implemented numerous accessors for you to efficiently retrieve important information from such an object. All of them are documented in the \Rfunction{PICS} vignette, available with the package, but we review a few important accessors here:
+<<PICS accessors,eval=TRUE,echo=TRUE>>=
+#Get the location of the binding sites (mid-point of the motifs).
+mu<-mu(pics)
+# Get the fragment length estimates from all binding events
+delta<-delta(pics)
+summary(delta)
+# Get the enrichment score from all binding events
+score<-score(pics)
+summary(score)
+@
+
+These are simple vectors containing all estimated parameters across candidate regions, and one can see that the average fragment size distributions is about 144 bps. In order to better visualize the fragment length estimates across binding events, we can use a simple histogram.
+<<PICS-fragment-length-distribution,eval=TRUE,echo=TRUE,fig=TRUE,eps=TRUE,pdf=FALSE>>=
+# For clarity, we focus on (0,500)
+hist(delta,xlim=c(0,500),50,main="Average fragment length distribution")
+@
+
+In \Rpackage{PICS}, each candidate region (a list element of seg) can contain multiple binding sites, and to summarize the number of events/region we can use the \Rmethod{K} accessor which will give us the number of binding events estimated for each region.
+<<PICS accessors,eval=TRUE,echo=TRUE>>=
+# Retrieve the number of events per region
+nEvents<-K(pics)
+# Tabulate these numbers
+table(nEvents)
+@
+We have also included a simple plotting method for visualizing a candidate region with the PICS estimated parameters, as follows,
+<<PICS-plots,eval=TRUE,echo=FALSE>>=
+def.par <- par(no.readonly = TRUE)
+@
+
+<<PICS-plots,eval=TRUE,echo=TRUE,fig=TRUE,eps=TRUE,pdf=FALSE>>=
+plot(pics[2],seg[2])
+@
+<<PICS-plots,eval=TRUE,echo=FALSE>>=
+par(def.par)
+@
+
+\subsection{Detecting enriched regions:}
+The next step would consist of selecting a list of estimated binding events to be prioritized for further analysis (e.g. motif analysis, or correlation with annotations). In the absence of control data, this needs to be done arbitrarily. For example, one could want to focus on all regions that have an enrichment score greater than 4. This can simply be done when exporting our \Robject{pics} object to a \Rclass{RangedData} object, as follows, with the appropriate filter
+
+<<PICS export,eval=TRUE,echo=TRUE>>=
+# Filter atypical peaks
+myFilter<-list(score=c(1,Inf),delta=c(50,300),se=c(0,50),sigmaSqF=c(0,22500),sigmaSqR=c(0,22500))
+# Make a RangedData Object
+RD<-makeRangedDataOutput(pics, type="bed",filter=myFilter) 
+library(rtracklayer)
+export(RD, "myfile.bed")
+@
+
+where we used the type bed for export, other export types (e.g. wig, fixed, etc) are also available. Please refer to the PICS vignette and man pages for more details.
+Note that above, we only keep the binding events that have a score greater than 4, a delta value (average fragment length) between 50 and 300, and standard deviation (strand specific peak width) less than 150 ($150^2=22500$). 
+If one wishes to export all events with typical filters (and score>1), we provide a shortcut with the \Rmethod{as} method as follows:
+<<PICS export,eval=FALSE,echo=TRUE>>=
+RD<-as(pics,"RangedData")
+@
+similarly if one wishes to export all events as a \Rclass{data.frame} with all PICS parameters without filtering, we can use
+<<PICS export,eval=FALSE,echo=TRUE>>=
+DF<-as(pics,"data.frame")
+@
+The \Rfunction{makeRangedDataOutput} can also be used to produce a `wig' type track with base level scores, as follows,
+<<PICS export,eval=TRUE,echo=TRUE>>=
+# Filter atypical peaks
+myFilter<-list(score=c(1,Inf),delta=c(50,300),se=c(0,50),sigmaSqF=c(0,22500),sigmaSqR=c(0,22500))
+# Make a RangedData Object
+RDwig<-makeRangedDataOutput(pics, type="wig",filter=myFilter)
+export(RDwig, "myfile.wig")
+@
+
+
+\subsection{FDR calculation}
+In the presence of the control, it is possible to generate an FDR curve that can be used to select an appropriate threshold. The first step is to rerun the same analysis after swapping the control and IP samples, as follows:
+<<PICS-FDR,eval=TRUE,echo=TRUE>>=
+
+segC<-segmentPICS(data=ER.ethl, dataC=ER.E2, map=mapp36, minReads=1)
+picsC<-PICS(segC, nCores=2)
+fdr <- picsFDR(pics, picsC, filter=list(delta=c(50, Inf), se=c(0,50), sigmaSqF=c(0, 22500), sigmaSqR=c(0, 22500)))
+@
+note that we have created a method for plot. If you input two pics objects, an FDR curve will be generated. \textbf{Note that the second argument needs to be the control.}
+<<PICS-FDR,eval=TRUE,echo=TRUE,fig=TRUE,eps=TRUE,pdf=FALSE>>=
+plot(pics,picsC)
+@
+and one can see that a threshold score of 2 would lead to an estimated FDR of about 10\% with about 300 regions
+If we want to use a score of 2 as threshold and filter atypical regions we can simply use
+
+<<PICS-FDR,eval=TRUE,echo=TRUE>>=
+# Filter atypical peaks
+myFilter<-list(score=c(2,Inf),delta=c(50,300),se=c(0,50), sigmaSqF=c(0,22500),sigmaSqR=c(0,22500))
+# Make a RangedData Object
+RD<-makeRangedDataOutput(pics, type="bed", filter=myFilter)
+@
+We can also visualize the FDR as a functioin fo the number of regions.
+
+
+\section{Visualization}
+The visualization of enriched regions and track lines is possible thanks to \Rpackage{GenomeGraphs} and \Rpackage{rtracklayer}.
+We first explore the \Rpackage{GenomeGraphs} package. In the example below, we will graph our enriched regions in a subset of chromosome 21 along with the nearest genes, 
+<<Visualization-GenomeGraphs-cs,eval=TRUE,echo=TRUE,fig=TRUE,print=FALSE,pdf=FALSE,eps=TRUE>>=
+library(GenomeGraphs)
+# Here I use the current genome build
+mart = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+genomeAxis<-makeGenomeAxis(add53 = TRUE, add35 = TRUE)
+RDwig1<-RDwig["chr21"]
+RD1<-RD["chr21"]
+minbase<-start(RD1[2,])-500
+maxbase<-start(RD1[2,])+500
+genesplus<-makeGeneRegion(start = minbase, end = maxbase, strand = "+",
+ chromosome = 21, biomart = mart) 
+genesmin<-makeGeneRegion(start = minbase, end = maxbase, strand = "-", 
+chromosome = 21, biomart = mart)
+score = makeBaseTrack(value=score(RDwig1), base = start(RDwig1), 
+dp = DisplayPars(lwd=2,color="black", type="h"))
+rectList<- makeRectangleOverlay(start = start(RD1), end = end(RD1), 
+region = c(1, 4), dp = DisplayPars(color = "green", alpha = 0.1))
+gdPlot(list("score" = score, "Gene +" = genesplus, Position = genomeAxis, 
+"Gene -" = genesmin), minBase = minbase, maxBase = maxbase, labelCex = 1,
+overlays=rectList)
+@
+
+Now we look at the \Rpackage{rtracklayer} package. \Rpackage{rtracklayer} is basically allowing us to interact with the UCSC genome browser directly from R. 
+<<Visualization-rtracklayer-cs,eval=FALSE,echo=TRUE>>=
+library(rtracklayer)
+## start a session
+RD_GR<-as(RD,"GRanges")
+session <- browserSession("UCSC")
+track(session, "targets") <- RD_GR
+subtrack<-RD_GR[2]
+view <- browserView(session, subtrack * -10, pack = c("Conservation","RepeatMasker"))
+@
+
+Of course, you always have the option to export the results as wig/bed and load it in your favorite browser. Export functionalities are also provided by the \texttt{rtracklayer} package.
+
+<<Exporting BED/WIG with rtracklayer,eval=FALSE,echo=TRUE>>=
+library(rtracklayer)
+# These functions are provided by rtracklayer
+export(RD,"ERregions.bed")
+export(RDwig,"ERscore.wig")
+@
+
+\section{De Novo motif discovery:}
+After having detected enriched regions, it is common to perform sequence analysis to detect biologically 
+relevant motifs that can be used to validate our regions and/or to gain novel insights about the biology of gene regulation. In collaboration with Leiping Li, we have developed an R package specifically designed to work on large set of sequences typically return by a ChIP-Seq experiment. \Rpackage{rGADEM} combines spaced dyads and an expectation-maximization (EM) algorithm. Candidate words (four to six nucleotides) for constructing spaced dyads are prioritized by their degree of overrepresentation in the input sequence data. Spaced dyads are converted into starting position weight matrices (PWMs). \Rpackage{rGADEM} then employs a genetic algorithm (GA), with an embedded EM algorithm to improve starting PWMs, to guide the evolution of a population of spaced dyads toward one whose entropy scores are more statistically significant. Spaced dyads whose entropy scores reach a pre specified significance threshold are declared motifs. 
+Here we will perform a motif analysis of the set of ER enriched regions returned by PICS using an FDR of 10\%
+
+<<deNovo with rGADEM,eval=FALSE,echo=TRUE>>=
+library(rGADEM)
+library(BSgenome.Hsapiens.UCSC.hg18)
+RDfixed<-makeRangedDataOutput(pics, type="fixed")
+RDfixed_top100<-RDfixed[1:100,]
+
+ERgadem<-GADEM(RDfixed_top100,seed=1,genome=Hsapiens,verbose=TRUE)
+# save(ERgadem,file="ERgadem.rda")
+@
+
+Now we will post-process and visualize our regulatory motifs using the package \Rpackage{MotIV}. \Rpackage{MotIV} is similar to STAMP \cite{Mahony:2007p125} with added graphics functionalities. It allows you to compare your identified motifs to known motifs according to some database (e.g. Jaspar\cite{PortalesCasamar:2010p543}) and report the best matches. \Rpackage{MotIV} includes the Jaspar database and will use it by default, however you are free to use your own, please refer to the vignette of the \Rpackage{MotIV} for more details.
+
+<<MotIV-cs,eval=TRUE,echo=TRUE,pdf=FALSE,eps=TRUE,fig=TRUE>>=
+library(MotIV)
+data(ERgadem)
+# Find the 5 best match in Jaspar.
+jaspar.match <- motifMatch(inputPWM = getPWM(ERgadem), top = 5)
+# Plot the motifs with their matches
+plot(jaspar.match , main = "Motifs in ER",top=5)
+@
+<<MotIV-cs2,eval=TRUE,echo=TRUE,pdf=FALSE,eps=TRUE,fig=TRUE>>=
+library(MotIV)
+data(ERgadem)
+# Find the 5 best match in Jaspar.
+jaspar.match <- motifMatch(inputPWM = getPWM(ERgadem), top = 5)
+# Plot the motifs with their matches and distribution
+plot(jaspar.match , ERgadem,main = "Motifs in ER")
+@
+
+When rGADEM identifies multiple motifs, visualization and validation can become difficult. \Rpackage{MotIV} allows the user to filter motifs based on a set of filters. This is done with the function \Rfunction{setFilter}, as follows,
+<<Filtering-with-MotIV,eval=TRUE,echo=TRUE,pdf=FALSE,eps=TRUE,fig=TRUE>>=
+Filter<-setFilter(name = "", tfname = "ESR1", top = 5, evalueMax = 10^-4)
+jaspar.match.ESR1<-filter(jaspar.match, Filter, verbose = TRUE)
+plot(jaspar.match.ESR1 , main = "ER motif",top=5)
+ERoc<-exportAsRangedData(jaspar.match.ESR1, ERgadem, correction=TRUE)
+@
+
+rGADEM provides an option where the algorithm is initialized using a known motif, we refer to this option as a seeded analysis. Seeded analysis can be of particular use for short motifs and/or noisy data (e.g. Chip-chip) where a regular (unseeded) analysis might be more difficult. In the code snippet below, we use the ESR1 Jaspar motif as our seed.
+
+The ER is included in the Jaspar database (named ESR1).
+<<ESR1-motif-in-Jaspar-cc,eval=TRUE,echo=TRUE,pdf=FALSE,eps=TRUE,fig=TRUE>>=
+# Normalize the PSSM -> PWM
+ERpwm<-apply(jaspar[["ESR1"]],2,function(x){x/sum(x)})
+# Make a PWM object that can be plotted with seqLogo
+library(seqLogo)
+ERpwmLogo<-makePWM(ERpwm)
+
+@
+
+<<deNovo with rGADEM seeded,eval=TRUE,echo=TRUE>>=
+# Seeded analysis
+library(rGADEM)
+library(BSgenome.Hsapiens.UCSC.hg18)
+RDfixed<-makeRangedDataOutput(pics, type="fixed", filter=myFilter)
+RDfixed_top100<-RDfixed[1:100,]
+ERgadem<-GADEM(RDfixed_top100,genome=Hsapiens,pValue=5*10^-6,minSites=5, 
+Spwm=list(ERpwm,ERpwm,ERpwm,ERpwm,ERpwm,ERpwm,ERpwm,ERpwm))
+@
+
+Note that seeded runs are typically faster than unseeded ones. Now, we once again analyze the results using MotIV,
+<<MotIV-seeded-cc,eval=TRUE,echo=TRUE,pdf=FALSE,eps=TRUE,fig=TRUE>>=
+jaspar.match <- motifMatch(inputPWM = getPWM(ERgadem), top = 5)
+plot(jaspar.match , main = "Motifs in ER data", top=5)
+@
+
+and we can see that one motif has been selected based on its match to the ESR1 Jaspar motif.
+\begin{Exercise}
+Try the above with a different eValue filter and/or motif name.
+\end{Exercise}
+
+\section{Annotation of enriched regions:}
+Here we explore the package \Rpackage{ChIPpeakAnno}\cite{Zhu:2010fk}, a package that facilitates the batch annotation of the peaks identified from either ChIP-seq or ChIP-chip experiments. Using \Rpackage{ChIPpeakAnno} you can find the nearest gene, exon, miRNA or custom features supplied by users such as most conserved elements and other transcription factor binding sites leveraging the \Rpackage{IRanges} package. 
+Here we load the TSS NCBI36 coordinates and look at possible possible overlaps with our ER binding sites. The \Rfunction{annotatePeakInBatch} will do that for you and in addition will compute the distance to the closest feature (here TSS).
+<<ChIPpeakAnno,eval=TRUE,echo=TRUE,fig=TRUE,pdf=FALSE,eps=TRUE>>=
+library(ChIPpeakAnno)
+data(TSS.human.NCBI36)
+annotatedPeak <- annotatePeakInBatch(ERoc, AnnotationData = TSS.human.NCBI36)
+# Plot the distances to TSS
+hist(annotatedPeak$distancetoFeature,50)
+@
+
+
+\begin{Exercise}
+Use the \Rpackage{rtracklayer} package to plot the motif occurrences.
+\end{Exercise}
+
+<<Answer,eval=FALSE,echo=FALSE>>=
+genome(ERoc)<-"hg18"
+grMotif21<-ERoc["chr21"]
+MySession[["ER motifs"]] <- grMotif21
+browserView(MySession, range=range(grMotif21[10,])*-100, track = c("PICS scores", "ER enriched regions","ER motifs","Conservation","RepeatMasker"),full="PICS scores")
+@
+
+\begin{Exercise}
+Perform the same analysis with the FOXA1 data.
+\end{Exercise}
+
+
+<<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
+
+path <- system.file("extdata/chip-seq/mapp",package = "ChipSeq")
+mapp27.file<-list.files(path, pattern = "mapp27",full.names = TRUE)
+mapp27<-read.table(file.path(path,"mapp27.bed"),header=TRUE, colClasses=c("factor","integer","integer","NULL"))
+mapp27<-as(mapp27,"GRanges")
+
+path<-system.file("extdata/chip-seq/FOXA1",package="ChipSeq")
+dataIP<-read.table(file.path(path,"Treatment_tags_header.bed"),header=TRUE,  colClasses=c("factor","integer","integer","factor"))
+dataIP<-as(dataIP,"GRanges")
+# Grep the control file
+dataCont<-read.table(file.path(path,"Input_tags_header.bed"),header=TRUE,colClasses=c("factor","integer","integer","factor"))
+dataCont<-as(dataCont,"GRanges")
+
+
+seg<-segmentPICS(dataIP, dataC=dataCont, map=mapp27, minReads=1)
+pics<-PICS(seg, nCores=2)
+segC<-segmentPICS(dataCont, dataC=dataIP, map=mapp27, minReads=1)
+picsC<-PICS(segC, nCores=2)
+plot(pics,picsC)
+
+# Filter atypical peaks
+myFilter<-list(score=c(2,Inf),delta=c(50,300),se=c(0,50),
+sigmaSqF=c(0,22500),sigmaSqR=c(0,22500))
+# Make a RangedData Object
+RD2<-makeRangedDataOutput(pics, type="bed", filter=myFilter)
+@
+
+<<Answer,eval=TRUE,echo=FALSE,fig=FALSE>>=
+RD2fixed<-makeRangedDataOutput(pics, type="fixed", filter=myFilter)
+# FOXA1gadem<-GADEM(RD2fixed,genome=Hsapiens,pValue=5*10^-6,minSites=5)
+data(FOXA1gadem)
+# Find the 5 best match in Jaspar.
+jaspar.match <- motifMatch(inputPWM = getPWM(FOXA1gadem), top = 5)
+# Plot the motifs with their matches
+#plot(jaspar.match , main = "Motifs in FOXA1",top=5)
+#plot(jaspar.match , FOXA1gadem, main = "Motifs in FOXA1",top=5)
+
+Filter<-setFilter(name = "", tfname = "FOXA1", top = 5, evalueMax = 10^-4)
+jaspar.match.FOXA1<-filter(jaspar.match, Filter, verbose = TRUE)
+FOXA1oc<-exportAsRangedData(jaspar.match.FOXA1, FOXA1gadem, correction=TRUE)
+@
+
+
+\part{MNase-Seq and ChIP-Seq for Nucleosome positioning}
+\section{Introduction}
+The nucleosome is the basic structural unit of chromatin, which is composed of a nucleosomeal core including $147$bp of DNA wrapped around a central histone octamer (H2A, H2B, H3 and H4) and `linker` DNA connecting nucleosomal core to the next. Because limited accessibility, identifying nucleosome positioning helps biologists to understand the cellular mechanism. The \Rclass{PING} package is develpped for identifying nucleosome positioning. 
+  
+\section{Data Input}
+The package is developped for single-end and also paired-end sequencing ChIP-Seq data.  
+The basic data input of \Rclass{PING} is a \Rclass{GRanges} objects condtaining the directional aligned reads(SE data) or recondtructed DNA fragments(PE data). \Rclass{GRanges} can be derived from `BED` and `BAM` formats. 
+
+<<Raw Data Input,eval=FALSE,echo=TRUE>>=
+library(PING)
+library(ShortRead)
+# SE data (Single-End data file)
+# Get the path of the data
+path <- system.file("extdata/chip-seq/SE",package = "ChipSeq")
+SE<-read.table(file.path("SE.bed"), header=TRUE)
+SE<- as(SE, "GRanges")
+
+The \Rlass{PICS} package includes \Rfunction{bam2gr} function for converting a `BAM` format to \Rclass{GRanges} object.
+
+\section{Statistical Analysis}
+\subsection{Genome segmentation}
+Because of sparseness of the ChIP-Seq data, we pull out genomic regions including a minimum number of forward and reverse reads. We use \Rfunction{segmentPING} function for calling candidate regions. However, the regions including nuclesomes are usually wider than those including transcription binding sites. Therfore, we set some filtering arguments in \Rfunction{segmentPING} as following:
+
+<<Genome segmentation,eval=FALSE,echo=TRUE>>=
+seg<-segmentPICS(data=SE, minReads=NULL, maxLregion=1200, minLregion=80, jitter=TRUE)
+summary(seg)
+@
+
+For \Rclass{PING}, the returned value is also a \Rclass{segReadsList} object. Each element of the \Rclass{segReadsList} contains the reads for the corresponding `candidate' region as well as the mappability intervals intersecting the region.
+
+
+\subsection{PING processing:}
+Now that we have created our `seg` object, we are ready to use\Rfunction{PING} to probabilitically detect positioned nucleosomes.  
+
+<<PING processing,eval=FALSE,echo=TRUE>>=
+ping<-PING(seg, nCores=2)
+@
+
+The \Rclass{PING} is for MNase and sonicated data sets. Therefore, the user should know which datatype they are dealing with. All default parameters are set for `MNase` datatype. In order to use `sonicated` data, the user should add the argument `dataType` in the function. The warning message states whether the parameters are set for `MNase` datatype or `sonicated` one.
+
+
+\subsection{Post-processing PING results}
+
+The variation in nucleosome-based short-read data lead that some of PING's predictions may be inaccurate. For example, when a nucleosome with strong signal is adjacent to nucleosomes with weaker signals, \Rclass{PING} may fit two forward mixture componets and one reverse component. This causes a mismatch of forward/reverse peaks of other nucleosomes. We need to detect and resolve such problematic regions using \Rfunction{postPING} function.The argument of `dataType` in both \Rfunction{PING} and \Rfunction{postPING} should be consistent.
+
+<<postPING process, eval=FALSE, echo=TRUE>>=
+PS <- postPING(ping, seg)
+@
+
+The output of \Rfunction{postPING} is a dataframe including all estimated parameters for each identified nucleosome position. The user can use \Rfunction{write.table} function to export the result. 
+
+\begin{Exercise}
+Export the postPING result.
+\end{Exercise}
+<<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
+write.table(PS, file="postPING.txt", sep="\t", rownames=FALSE)
+@
+
+\subsection{Export result}
+
+For further analysis including uploading the identified nucleosome positions in `UCSC` browser, we use the \Rfunction{makeRangedDataOutput} to export \Rclass{pingList} from \Rfunction{PING} or the \Rclass{data.frame} from \Rfunction{postPING} to different data formats. 
+
+<<Export the PING results, eval=FALSE, echo=TRUE>>=
+## Exporting PING result 
+rdBed <- makeRangedDataOutput(ping, type="bed")
+
+library(rtracklayer)
+export(rdBed, file="ping.bed")
+@
+
+The function uses the estimated fragment size in the `BED` format to infer the ranges where as the 'fixed' type is a `BED` format with a fixed nucleosome size of $147$bp.  
+
+\begin{Exercise}
+Export the postPING result using `fix` type.
+\end{Exercise}
+
+<<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
+## Exporting postPING result rdFix <- makeRangedDataOutput(PS, type="fix")
+library(rtracklayer)
+export(rdBed, file="ping.bed")
+export(rdFix, file="postPING.bed")
+@
+
+
+\subsection{Visualization}
+
+To faciliate with the \Rclass{Gviz} package, the user can visualize the identified nucleosome positions for a given ranges. The \Rclass{PING} also includes a built-in plotting function \Rfunction{ploSummary}. 
+
+<<Visualization, eval=FALSE, echo=TRUE>>=
+plotSummary(PS, ping, SE, "chr1", "gen", from=149000, to=153000)
+@
+
+The plot shows the predicted nucleosome positions, the associated score for each nucleosome and the profile of the short reads in addition to the alighned reads. The user can filter the nucleosomes passing some threshold of the score using the argument of \Rclass{scoreThreshold}. We also can hide the score track on the graph by setting the argumet of \Rclass{scoreTrack} as `FALSE`
+
+\begin{Exercise}
+Replot the predicted nucleosome positions for the same genomic region without score track.
+\end{Exercise}
+
+<<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
+plotSummary(PS, ping, SE, "chr1", "gen", from=149000, to=153000, scoreTrack=FALSE)
+@
+
+The user also can use functions in \Rclass{Gviz} to customize their own plot. The available functions for creating tracks in the \Rclass{PING} package are \Rfunction{CoverageTrack}, \Rfunction{RawReadsTrack}, and \Rfunction{NucleosomeTrack}
+
+<<Visualization, eval=FALSE, echo=TRUE>>=
+library(Gviz)
+cTrack <- CoverageTrack(ping, dataIP, "chr1", "gen")
+rTrack <- RawReadsTrack(ping, dataIP, "chr1", "gen", name = "Reads")
+nTrack <- NucleosomeTrack(PS, "chr1", "gen", scoreThreshold = 0.1, name = "NEW")
+
+## Add genomic information using Gviz's built-in functions. 
+gTrack <- GenomeAxisTrack(add53 = TRUE, add35 = TRUE)
+aTrack <- AnnotationTrack(start = 149500, end = 151000, showFeatureId= TRUE,
+     id = "random annotation", col.title = "orange", chr = "chr1",
+     gen = "gen", name = "custom")
+plotTracks(trackList = c(gTrack, cTrack, aTrack, rTrack, nTrack),
+     main = "Custom plot", from = 149000, to = 153000)
+@ 
+
+\end{document}
+
+
+
+\section{Session Info}
+<<Session Info>>=
+sessionInfo()
+@
+
+\bibliographystyle{unsrt}
+\bibliography{chipData_AD}
+
+\end{document}
