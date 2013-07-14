@@ -459,8 +459,13 @@ library(ShortRead)
 # SE data (Single-End data file)
 # Get the path of the data
 path <- system.file("extdata/chip-seq/SE",package = "ChipSeq")
-SE<-read.table(file.path("SE.bed"), header=TRUE)
-SE<- as(SE, "GRanges")
+
+# SE <- read.table(file.path("SE.bed"), header=FALSE)
+# names(SE) <- c("chromosome", "start", "end", "name", "score", "strand")
+# SE <- as(SE, "GRanges")
+# Read .bed format using rtracklayer package
+library(rtracklayer)
+SE<-import(file.path("SE.bed"))
 
 The \Rlass{PICS} package includes \Rfunction{bam2gr} function for converting a `BAM` format to \Rclass{GRanges} object.
 
@@ -469,7 +474,7 @@ The \Rlass{PICS} package includes \Rfunction{bam2gr} function for converting a `
 Because of sparseness of the ChIP-Seq data, we pull out genomic regions including a minimum number of forward and reverse reads. We use \Rfunction{segmentPING} function for calling candidate regions. However, the regions including nuclesomes are usually wider than those including transcription binding sites. Therfore, we set some filtering arguments in \Rfunction{segmentPING} as following:
 
 <<Genome segmentation,eval=FALSE,echo=TRUE>>=
-seg<-segmentPICS(data=SE, minReads=NULL, maxLregion=1200, minLregion=80, jitter=TRUE)
+seg<-segmentPING(data=SE, minReads=NULL, maxLregion=1200, minLregion=80, jitter=TRUE)
 summary(seg)
 @
 
@@ -500,7 +505,7 @@ The output of \Rfunction{postPING} is a dataframe including all estimated parame
 Export the postPING result.
 \end{Exercise}
 <<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
-write.table(PS, file="postPING.txt", sep="\t", rownames=FALSE)
+write.table(PS, file="postPING.txt", sep="\t", row.names=FALSE)
 @
 
 \subsection{Export result}
@@ -512,7 +517,7 @@ For further analysis including uploading the identified nucleosome positions in 
 rdBed <- makeRangedDataOutput(ping, type="bed")
 
 library(rtracklayer)
-export(rdBed, file="ping.bed")
+export(rdBed, con="ping.bed")
 @
 
 The function uses the estimated fragment size in the `BED` format to infer the ranges where as the 'fixed' type is a `BED` format with a fixed nucleosome size of $147$bp.  
@@ -524,8 +529,8 @@ Export the postPING result using `fix` type.
 <<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
 ## Exporting postPING result rdFix <- makeRangedDataOutput(PS, type="fix")
 library(rtracklayer)
-export(rdBed, file="ping.bed")
-export(rdFix, file="postPING.bed")
+export(rdBed, con="ping.bed")
+export(rdFix, con="postPING.bed")
 @
 
 
@@ -534,34 +539,34 @@ export(rdFix, file="postPING.bed")
 To faciliate with the \Rclass{Gviz} package, the user can visualize the identified nucleosome positions for a given ranges. The \Rclass{PING} also includes a built-in plotting function \Rfunction{ploSummary}. 
 
 <<Visualization, eval=FALSE, echo=TRUE>>=
-plotSummary(PS, ping, SE, "chr1", "gen", from=149000, to=153000)
+plotSummary(PS, ping, SE, "chrIII", "gen", from=152000, to=156000)
 @
 
-The plot shows the predicted nucleosome positions, the associated score for each nucleosome and the profile of the short reads in addition to the alighned reads. The user can filter the nucleosomes passing some threshold of the score using the argument of \Rclass{scoreThreshold}. We also can hide the score track on the graph by setting the argumet of \Rclass{scoreTrack} as `FALSE`
-
+The plot shows the predicted nucleosome positions, the associated score for each nucleosome and the profile of the short reads in addition to the alighned reads. The user can filter the nucleosomes passing some threshold of the score using the argument of \Rclass{scoreThreshold}. 
+ 
 \begin{Exercise}
-Replot the predicted nucleosome positions for the same genomic region without score track.
+Replot the predicted nucleosome positions for the same genomic region with different threshold for score track.
 \end{Exercise}
 
 <<Answer,eval=FALSE,echo=FALSE,fig=FALSE>>=
-plotSummary(PS, ping, SE, "chr1", "gen", from=149000, to=153000, scoreTrack=FALSE)
+plotSummary(PS, ping, SE, "chrIII", "gen", from=152000, to=156000, scoreThreshold=10)
 @
 
 The user also can use functions in \Rclass{Gviz} to customize their own plot. The available functions for creating tracks in the \Rclass{PING} package are \Rfunction{CoverageTrack}, \Rfunction{RawReadsTrack}, and \Rfunction{NucleosomeTrack}
 
 <<Visualization, eval=FALSE, echo=TRUE>>=
 library(Gviz)
-cTrack <- CoverageTrack(ping, dataIP, "chr1", "gen")
-rTrack <- RawReadsTrack(ping, dataIP, "chr1", "gen", name = "Reads")
-nTrack <- NucleosomeTrack(PS, "chr1", "gen", scoreThreshold = 0.1, name = "NEW")
+cTrack <- CoverageTrack(ping, SE, "chrIII", "gen")
+rTrack <- RawReadsTrack(ping, SE, "chrIII", "gen", name = "Reads")
+nTrack <- NucleosomeTrack(PS, "chrIII", "gen", scoreThreshold = 0.1, name = "NEW")
 
 ## Add genomic information using Gviz's built-in functions. 
 gTrack <- GenomeAxisTrack(add53 = TRUE, add35 = TRUE)
-aTrack <- AnnotationTrack(start = 149500, end = 151000, showFeatureId= TRUE,
-     id = "random annotation", col.title = "orange", chr = "chr1",
+aTrack <- AnnotationTrack(start=154000, end=155000, showFeatureId= TRUE,
+     id="random annotation", col.title = "orange", chr = "chrIII",
      gen = "gen", name = "custom")
 plotTracks(trackList = c(gTrack, cTrack, aTrack, rTrack, nTrack),
-     main = "Custom plot", from = 149000, to = 153000)
+     main = "Custom plot", from = 152000, to = 156000)
 @ 
 
 \end{document}
